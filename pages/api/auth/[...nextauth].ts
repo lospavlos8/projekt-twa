@@ -14,7 +14,7 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.name || !credentials?.password) {
-          return null;
+          throw new Error("Missing credentials");
         }
 
         const user = await prisma.user.findUnique({
@@ -22,13 +22,13 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!user) {
-          return null;
+          throw new Error("User not found");
         }
 
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
 
         if (!isPasswordValid) {
-          return null;
+          throw new Error("Invalid password");
         }
 
         return { id: user.id, name: user.name };
@@ -42,6 +42,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.name = user.name;
       }
 
       return token;
@@ -49,6 +50,10 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user && token.id) {
         session.user.id = token.id;
+      }
+
+       if (session.user && typeof token.name === "string") {
+        session.user.name = token.name;
       }
 
       return session;
