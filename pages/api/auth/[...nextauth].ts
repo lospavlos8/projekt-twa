@@ -5,6 +5,9 @@ import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
+  pages: {
+    signIn: "/login"
+  },
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -52,7 +55,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id;
       }
 
-       if (session.user && typeof token.name === "string") {
+      if (session.user && typeof token.name === "string") {
         session.user.name = token.name;
       }
 

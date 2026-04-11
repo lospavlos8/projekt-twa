@@ -1,16 +1,17 @@
 import { GetServerSideProps } from "next";
+import { getSession } from "next-auth/react";
 
 export default function Home() {
-
   return null;
 }
 
-export const getServerSideProps: GetServerSideProps = async () => {
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const session = await getSession(context);
 
   return {
     redirect: {
-      destination: "/dashboard",
-      permanent: false,
-    },
+      destination: session ? "/dashboard" : "/login",
+      permanent: false
+    }
   };
 };
