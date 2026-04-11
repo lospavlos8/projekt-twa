@@ -1,24 +1,23 @@
-import { useEffect, useState } from "react";
-import type { GetServerSideProps } from "next";
+import { FormEvent, useEffect, useState } from "react";
+import type { GetServerSideProps, InferGetServerSidePropsType } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { getServerSession } from "next-auth/next";
-
-import { authOptions } from "../api/auth/[...nextauth]";
+import { getSession } from "next-auth/react";
+import { ArrowLeft, Loader2, Save } from "lucide-react";
 
 interface Note {
   id: string;
   title: string;
   content: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 type ErrorResponse = {
   error?: string;
 };
 
-export default function NoteEditorPage() {
+type PageProps = InferGetServerSidePropsType<typeof getServerSideProps>;
+
+export default function NoteEditorPage(_: PageProps) {
   const router = useRouter();
   const { id } = router.query;
   const noteId = typeof id === "string" ? id : null;
@@ -26,12 +25,13 @@ export default function NoteEditorPage() {
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [isLoading, setIsLoading] = useState(!isNewNote);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const shouldShowLoading = !router.isReady || (!isNewNote && isFetching);
 
   useEffect(() => {
-    if (!noteId) {
+    if (!router.isReady || !noteId) {
       return;
     }
 
@@ -39,25 +39,25 @@ export default function NoteEditorPage() {
       setTitle("");
       setContent("");
       setError(null);
-      setIsLoading(false);
+      setIsFetching(false);
       return;
     }
 
     let active = true;
 
     async function loadNote() {
-      setIsLoading(true);
+      setIsFetching(true);
       setError(null);
 
       try {
         const response = await fetch("/api/notes");
+        const notes = (await response.json()) as Note[];
 
         if (!response.ok) {
-          const data = (await response.json()) as ErrorResponse;
+          const data = notes as unknown as ErrorResponse;
           throw new Error(data.error ?? "Nepodarilo se nacist poznamku.");
         }
 
-        const notes = (await response.json()) as Note[];
         const existingNote = notes.find((note) => note.id === noteId);
 
         if (!existingNote) {
@@ -74,7 +74,7 @@ export default function NoteEditorPage() {
         }
       } finally {
         if (active) {
-          setIsLoading(false);
+          setIsFetching(false);
         }
       }
     }
@@ -84,16 +84,21 @@ export default function NoteEditorPage() {
     return () => {
       active = false;
     };
-  }, [isNewNote, noteId]);
+  }, [isNewNote, noteId, router.isReady]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!noteId || isSubmitting) {
+    if (!noteId || isSaving) {
       return;
     }
 
-    setIsSubmitting(true);
+    if (!title.trim()) {
+      setError("Titulek je povinny.");
+      return;
+    }
+
+    setIsSaving(true);
     setError(null);
 
     const endpoint = isNewNote ? "/api/notes" : `/api/notes/${noteId}`;
@@ -105,7 +110,7 @@ export default function NoteEditorPage() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ title, content })
+        body: JSON.stringify({ title: title.trim(), content })
       });
 
       if (!response.ok) {
@@ -117,78 +122,72 @@ export default function NoteEditorPage() {
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : "Nepodarilo se ulozit poznamku.";
       setError(message);
-      alert(message);
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   }
 
   return (
-    <main className="mx-auto mt-10 flex max-w-3xl flex-col gap-6 bg-slate-50 px-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.24em] text-slate-500">Editor</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-            {isNewNote ? "Nova poznamka" : "Upravit poznamku"}
-          </h1>
-        </div>
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-12 gap-4">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-orange-500"
+          className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 transition hover:text-orange-500"
         >
-          Zpet
+          <ArrowLeft className="w-4 h-4" />
+          Zpet na dashboard
         </Link>
+
+        <button
+          type="submit"
+          form="note-editor-form"
+          disabled={!router.isReady || isFetching || isSaving}
+          className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6 py-2 flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {isSaving ? "Ukladam" : "Ulozit"}
+        </button>
       </div>
 
       {error ? (
-        <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700 shadow-sm">{error}</div>
+        <div className="mb-6 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">{error}</div>
       ) : null}
 
-      {isLoading ? (
-        <div className="rounded-2xl bg-white px-6 py-16 text-center text-slate-500 shadow-sm">
-          Nacitam poznamku...
+      {shouldShowLoading ? (
+        <div className="flex min-h-[500px] items-center justify-center text-slate-500">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+            <span className="text-base font-medium">Nacitam poznamku...</span>
+          </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="flex min-h-[60vh] flex-col bg-transparent">
-          <div className="flex flex-1 flex-col">
-            <label className="flex flex-col">
-              <input
-                type="text"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                required
-                className="mb-6 w-full border-none bg-transparent px-0 text-4xl font-extrabold text-slate-900 outline-none focus:ring-0 placeholder:text-slate-300"
-              />
-            </label>
+        <form id="note-editor-form" onSubmit={handleSave}>
+          <input
+            type="text"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Bez nazvu"
+            className="w-full text-4xl sm:text-5xl font-extrabold text-slate-900 bg-transparent border-none outline-none focus:ring-0 placeholder:text-slate-300"
+          />
 
-            <label className="flex flex-1 flex-col">
-              <textarea
-                value={content}
-                onChange={(event) => setContent(event.target.value)}
-                required
-                rows={12}
-                className="min-h-[60vh] w-full resize-none border-none bg-transparent px-0 py-0 text-lg leading-relaxed text-slate-800 outline-none focus:ring-orange-500 placeholder:text-slate-400"
-              />
-            </label>
+          <div className="h-px bg-slate-200 w-full my-6" />
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="mt-6 flex w-fit items-center gap-2 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-orange-600 disabled:opacity-60"
-            >
-              {isSubmitting ? "Ukladam..." : "Ulozit"}
-            </button>
-          </div>
+          <textarea
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            placeholder="Zacni psat..."
+            className="w-full min-h-[500px] text-lg text-slate-700 leading-relaxed bg-transparent border-none outline-none resize-none focus:ring-0 placeholder:text-slate-400"
+          />
         </form>
       )}
-    </main>
+    </div>
   );
 }
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
-  const session = await getServerSession(context.req, context.res, authOptions);
+  const session = await getSession(context);
 
-  if (!session?.user?.id) {
+  if (!session) {
     return {
       redirect: {
         destination: "/login",
@@ -198,6 +197,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
 
   return {
-    props: {}
+    props: { session }
   };
 };

@@ -49,15 +49,15 @@ export default async function handler(
   if (req.method === "POST") {
     const { title, content } = req.body as CreateNoteBody;
 
-    if (typeof title !== "string" || typeof content !== "string" || !title || !content) {
-      res.status(400).json({ error: "Title and content are required" });
+    if (typeof title !== "string" || !title.trim() || typeof content !== "string") {
+      res.status(400).json({ error: "Title is required" });
       return;
     }
 
     try {
       const note = await prisma.note.create({
         data: {
-          title,
+          title: title.trim(),
           content,
           userId: session.user.id
         }
