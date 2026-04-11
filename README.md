@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Požadavky a instalace
 
-## Getting Started
-
-First, run the development server:
+Projekt vyžaduje Node.js 20+ a npm.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+# Nastavení prostředí (.env)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Zkopírujte ukázkový soubor a vyplňte platné hodnoty pro Supabase / PostgreSQL a NextAuth:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+copy .env.local.example .env
+```
 
-## Learn More
+V souboru `.env` nastavte hlavně:
 
-To learn more about Next.js, take a look at the following resources:
+- `DATABASE_URL` pro pooled připojení přes Supabase pooler
+- `DIRECT_URL` pro přímé Prisma operace a migrace
+- `NEXTAUTH_SECRET` pro podepisování session
+- `NEXTAUTH_URL` podle lokální nebo produkční URL aplikace
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Migrace a spuštění
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Po nastavení `.env` spusťte synchronizaci databáze a vývojový server:
 
-## Deploy on Vercel
+```bash
+npx prisma db push
+npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Aplikace poběží na `http://localhost:3000`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Demo uživatel (Seed)
+
+Pro naplnění databáze ukázkovými daty spusťte:
+
+```bash
+npx prisma db seed
+```
+
+Přihlašovací údaje demo účtu:
+
+| Pole | Hodnota |
+| --- | --- |
+| E-mail / jméno | `demo@demo.cz` |
+| Heslo | `heslo123` |
+
+# Export a Import JSON
+
+Po přihlášení lze export spustit přes `GET /api/notes/export`, který stáhne soubor `moje_poznamky.json`.
+
+Import se provádí `POST` požadavkem na `/api/notes/import` s JSON polem poznámek v těle requestu. Endpoint přijímá maximálně 100 poznámek a odmítne příliš velký payload.

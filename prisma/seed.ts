@@ -1,44 +1,56 @@
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import bcrypt from "bcryptjs";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
-    console.log('Spouštím seedování databáze...');
+  const hashedPassword = await bcrypt.hash("heslo123", 10);
 
+  const demoUser = await prisma.user.upsert({
+    where: {
+      name: "demo@demo.cz"
+    },
+    update: {
+      password: hashedPassword
+    },
+    create: {
+      name: "demo@demo.cz",
+      password: hashedPassword
+    }
+  });
 
-    const hashedPassword = await bcrypt.hash('demo1234', 10);
+  await prisma.note.deleteMany({
+    where: {
+      userId: demoUser.id
+    }
+  });
 
-
-    const user = await prisma.user.upsert({
-        where: { name: 'demo' },
-        update: {},
-        create: {
-            name: 'demo',
-            password: hashedPassword,
-            notes: {
-                create: [
-                    {
-                        title: 'První demo poznámka',
-                        content: 'Toto je ukázkový obsah první poznámky.',
-                    },
-                    {
-                        title: 'Druhá demo poznámka',
-                        content: 'Zadání vyžaduje alespoň jednoho demo uživatele s poznámkami.',
-                    },
-                ],
-            },
-        },
-    });
-
-    console.log(`Hotovo! Demo uživatel vytvořen: ${user.name}`);
+  await prisma.note.createMany({
+    data: [
+      {
+        title: "Vitej v demo uctu",
+        content: "Toto je ukazkova poznamka pro rychle overeni aplikace. Muzete ji upravit, exportovat nebo smazat.",
+        userId: demoUser.id
+      },
+      {
+        title: "Plan na dalsi tyden",
+        content: "Dokoncit nasazeni na Vercel, zkontrolovat prihlaseni pres NextAuth a otestovat import a export JSON souboru.",
+        userId: demoUser.id
+      },
+      {
+        title: "Napady k produktu",
+        content: "Pridat filtrovani poznamek, fulltextove vyhledavani a jednoduchy archiv pro starsi zaznamy.",
+        userId: demoUser.id
+      }
+    ]
+  });
 }
 
 main()
-    .catch((e) => {
-        console.error(e);
-        process.exit(1);
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });
+  .catch((error) => {
+    console.error("Seed failed:", error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
