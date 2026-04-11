@@ -39,39 +39,33 @@ export default async function handler(
     return;
   }
 
-  let note: Note | null;
-
   try {
-    note = await prisma.note.findUnique({
-      where: { id }
+    const note = await prisma.note.findFirst({
+      where: {
+        id,
+        userId: session.user.id
+      }
     });
-  } catch (error: unknown) {
-    console.error("Failed to load note:", error);
-    res.status(500).json({ error: "Internal server error" });
-    return;
-  }
 
-  if (!note) {
-    res.status(404).json({ error: "Note not found" });
-    return;
-  }
+    if (!note) {
+      res.status(404).json({ error: "Note not found" });
+      return;
+    }
 
-  if (note.userId !== session.user.id) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-
-  if (req.method === "DELETE") {
-    try {
-      await prisma.note.delete({
-        where: { id }
+    if (req.method === "DELETE") {
+      await prisma.note.deleteMany({
+        where: {
+          id,
+          userId: session.user.id
+        }
       });
 
       res.status(204).end();
-    } catch (error: unknown) {
-      console.error("Failed to delete note:", error);
-      res.status(500).json({ error: "Internal server error" });
+      return;
     }
+  } catch (error: unknown) {
+    console.error("Failed to load note:", error);
+    res.status(500).json({ error: "Internal server error" });
     return;
   }
 
@@ -92,10 +86,30 @@ export default async function handler(
   }
 
   try {
-    const updatedNote = await prisma.note.update({
-      where: { id },
+    const updatedResult = await prisma.note.updateMany({
+      where: {
+        id,
+        userId: session.user.id
+      },
       data
     });
+
+    if (updatedResult.count === 0) {
+      res.status(404).json({ error: "Note not found" });
+      return;
+    }
+
+    const updatedNote = await prisma.note.findFirst({
+      where: {
+        id,
+        userId: session.user.id
+      }
+    });
+
+    if (!updatedNote) {
+      res.status(404).json({ error: "Note not found" });
+      return;
+    }
 
     res.status(200).json(updatedNote);
   } catch (error: unknown) {
